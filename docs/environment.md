@@ -275,9 +275,11 @@ template.render()
 
 ### Loop Iteration Limit
 
-[`loop_iteration_limit`](api/environment.md#liquid.Environment.loop_iteration_limit) is the maximum number of loop iterations allowed before a `LoopIterationLimitError` is raised.
+[`loop_iteration_limit`](api/environment.md#liquid.Environment.loop_iteration_limit) bounds the number of loop iterations allowed on a single render context's loop stack before a `LoopIterationLimitError` is raised.
 
 The default `loop_iteration_limit` is `None`, meaning there is no limit.
+
+The check is performed when a loop is entered, before its body runs. It compares the limit against the product of the *declared* lengths of every loop on the current loop stack, including the loop being entered. This means the limit constrains the nesting product of active loops (`outer length × inner length × ...`), not the cumulative number of iterations performed over the whole render.
 
 ```python
 from liquid import Environment
@@ -300,7 +302,22 @@ template.render()
 # liquid.exceptions.LoopIterationLimitError: loop iteration limit reached
 ```
 
+Consequences of the nesting-product semantics:
+
+- **Sibling loops are not cumulative.** Two sequential loops, each shorter than the limit, both run in full even though their combined iterations exceed it. Each loop is pushed onto an otherwise empty loop stack.
+- **The declared length is used, not the executed length.** The check happens on entry, so `{% break %}` cannot avoid a limit that the declared length would exceed, and `{% continue %}` does not reduce the count either. A loop declared with 150 iterations over a limit of 100 raises before its body executes, even if it would break on the first item.
+- **Only loop tags are metered.** Work done outside of `for`, `tablerow` and the loop forms of `render`/`include` is not counted.
+- **The comparison is inclusive at the boundary.** A nesting product equal to the limit is allowed; only a strictly greater product raises.
+
 Other built in tags that contribute to the loop iteration counter are `render`, `include` (when using their `{% render 'thing' for some.thing %}` syntax) and `tablerow`. If a partial template is rendered within a `for` loop, the loop counter is carried over to the render context of the partial template.
+
+`render` creates a new render context with [`RenderContext.copy`](api/render_context.md#liquid.RenderContext.copy), but it passes `carry_loop_iterations=True`, so the product of the parent's active loop lengths is forwarded as the new context's `loop_iteration_carry`. The guarantee therefore survives the context copy: a loop inside the rendered partial is checked against the parent's product multiplied by its own length. `include` does not copy the context at all; it extends the current one, so its loops sit on the same loop stack directly. Nested `render` calls propagate the carry through every copy.
+
+The synchronous and asynchronous rendering paths share the same check in [`RenderContext.raise_for_loop_limit`](api/render_context.md#liquid.RenderContext.raise_for_loop_limit), so the behavior is identical under `render` and `render_async`.
+
+!!! warning "Not a total work budget"
+
+    `loop_iteration_limit` is not resource isolation for an entire render. Because sibling loops reset the stack and non-loop work is unmetered, a template can still perform arbitrarily large amounts of work without tripping it — for example many sequential loops each at or below the limit, repeatedly rendered partials whose loops fit individually, or expensive filter and string operations outside loops. See the [integration guide](integration_guide.md) for what this option does and does not protect against, and which additional limits to combine it with.
 
 ### Output Stream Limit
 

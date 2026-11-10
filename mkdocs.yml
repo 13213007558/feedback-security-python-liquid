@@ -46,6 +46,7 @@ nav:
       - Static template analysis: "static_analysis.md"
       - Custom filters: "custom_filters.md"
       - Custom tags: "custom_tags.md"
+      - Integration guide: "integration_guide.md"
       - Known issues: "known_issues.md"
       - Migration guide: "migration.md"
   - Tag reference:

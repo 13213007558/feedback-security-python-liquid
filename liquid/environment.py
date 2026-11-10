@@ -469,7 +469,16 @@ class Environment:
         self,
         globals: Optional[Mapping[str, object]] = None,  # noqa: A002
     ) -> dict[str, object]:
-        """Combine environment globals with template globals."""
+        """Combine environment globals with template globals.
+
+        - `None` (the default) and empty mappings are equivalent: the result
+          is a copy of the environment's globals and nothing more.
+        - A non-empty mapping is merged over the environment's globals, with
+          template globals taking priority.
+
+        A new dictionary is returned on every call, so callers can attach the
+        result to a template without it being shared with other templates.
+        """
         if globals:
             # Template globals take priority over environment globals.
             return {**self.globals, **globals}

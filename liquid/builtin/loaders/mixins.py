@@ -48,7 +48,26 @@ class _CachingLoaderProtocol(Protocol):
 
 
 class CachingLoaderMixin(ABC, _CachingLoaderProtocol):
-    """A mixin class that adds caching to a template loader."""
+    """A mixin class that adds caching to a template loader.
+
+    The cache holds compiled templates - parse trees plus template metadata -
+    keyed by template name (and optional namespace). Every call to `load()` or
+    `load_async()` returns a distinct `BoundTemplate` that shares the cached
+    parse tree but is bound to the globals passed to that call.
+
+    Template globals are never stored in, mutated on, or read from the cached
+    template, so one caller's globals can not leak into a template already
+    held by another caller. The globals contract is:
+
+    - `globals=None` (the default): the returned template is bound to an empty
+      mapping. When loading through `Environment.get_template()`, the
+      environment's globals are merged in by the environment before the loader
+      is called.
+    - An empty mapping: equivalent to `None`.
+    - A non-empty mapping: attached to the returned template as-is. The
+      mapping passed by `Environment.get_template()` is always a fresh copy,
+      so it is never shared between calls.
+    """
 
     caching_loader = True
 
@@ -76,20 +95,18 @@ class CachingLoaderMixin(ABC, _CachingLoaderProtocol):
         load_func: Callable[[], BoundTemplate],
     ) -> BoundTemplate:
         try:
-            cached_template = self.cache[cache_key]
+            compiled = self.cache[cache_key]
         except KeyError:
-            template = load_func()
-            self.cache[cache_key] = template
-            return template
+            compiled = load_func()
+            self.cache[cache_key] = compiled
+        else:
+            if self.auto_reload and not compiled.is_up_to_date():
+                compiled = load_func()
+                self.cache[cache_key] = compiled
 
-        if self.auto_reload and not cached_template.is_up_to_date():
-            template = load_func()
-            self.cache[cache_key] = template
-            return template
-
-        if globals:
-            cached_template.globals = globals
-        return cached_template
+        # The cached template is never handed out or mutated. Each caller gets
+        # a new binding to the shared parse tree, with its own globals.
+        return compiled.bind(globals)
 
     async def _check_cache_async(
         self,
@@ -99,20 +116,18 @@ class CachingLoaderMixin(ABC, _CachingLoaderProtocol):
         load_func: Callable[[], Awaitable[BoundTemplate]],
     ) -> BoundTemplate:
         try:
-            cached_template = self.cache[cache_key]
+            compiled = self.cache[cache_key]
         except KeyError:
-            template = await load_func()
-            self.cache[cache_key] = template
-            return template
+            compiled = await load_func()
+            self.cache[cache_key] = compiled
+        else:
+            if self.auto_reload and not await compiled.is_up_to_date_async():
+                compiled = await load_func()
+                self.cache[cache_key] = compiled
 
-        if self.auto_reload and not await cached_template.is_up_to_date_async():
-            template = await load_func()
-            self.cache[cache_key] = template
-            return template
-
-        if globals:
-            cached_template.globals = globals
-        return cached_template
+        # The cached template is never handed out or mutated. Each caller gets
+        # a new binding to the shared parse tree, with its own globals.
+        return compiled.bind(globals)
 
     def load(
         self,
@@ -132,7 +147,9 @@ class CachingLoaderMixin(ABC, _CachingLoaderProtocol):
                 super().load,  # type: ignore
                 env,
                 name,
-                globals=globals,
+                # The cached, compiled template is parsed without per-load
+                # globals. Callers get a new binding via `BoundTemplate.bind()`.
+                globals=None,
                 context=context,
                 **kwargs,
             ),
@@ -156,7 +173,9 @@ class CachingLoaderMixin(ABC, _CachingLoaderProtocol):
                 super().load_async,  # type: ignore
                 env,
                 name,
-                globals=globals,
+                # The cached, compiled template is parsed without per-load
+                # globals. Callers get a new binding via `BoundTemplate.bind()`.
+                globals=None,
                 context=context,
                 **kwargs,
             ),

@@ -4,6 +4,7 @@
 
 **Fixes**
 
+- Fixed `CachingLoaderMixin` mutating the `globals` of a cached template on every cache hit. Previously, loading a template that was already cached would overwrite the `globals` of the `BoundTemplate` returned by earlier loads, so one caller's template globals could leak into a template still held by another caller. The cache now only stores the compiled template (parse tree plus metadata, without per-load globals) and every call to `load()`/`load_async()` returns a distinct `BoundTemplate` sharing the cached parse tree, bound to the globals passed to that call. See `BoundTemplate.bind()`.
 - Fixed `<` and `>` comparing Boolean operands as integers, or raising `LiquidTypeError`, since version 2.3.3. They now evaluate to `false`, like `<=` and `>=`.
 - Fixed `reject` and `where` filter truthiness. Previously we were treating `0` as `False`.
 

@@ -204,7 +204,9 @@ def test_cache_templates() -> None:
     assert template.is_up_to_date() is True
 
     another_template = env.get_template("index.liquid")
-    assert template is another_template
+    assert template is not another_template
+    # Compiled nodes are shared between loads of the same template.
+    assert template.nodes is another_template.nodes
 
 
 def test_auto_reload_cached_templates() -> None:
@@ -221,7 +223,8 @@ def test_auto_reload_cached_templates() -> None:
 
         same_template = env.get_template("some.txt")
         assert same_template.is_up_to_date()
-        assert same_template is template
+        assert same_template is not template
+        assert same_template.nodes is template.nodes
 
         # Update template source
         time.sleep(0.01)
@@ -230,6 +233,7 @@ def test_auto_reload_cached_templates() -> None:
         assert template.is_up_to_date() is False
         updated_template = env.get_template("some.txt")
         assert updated_template is not template
+        assert updated_template.nodes is not template.nodes
 
 
 def test_auto_reload_cached_templates_async() -> None:
@@ -247,7 +251,8 @@ def test_auto_reload_cached_templates_async() -> None:
 
             same_template = await env.get_template_async("some.txt")
             assert await same_template.is_up_to_date_async()
-            assert same_template is template
+            assert same_template is not template
+            assert same_template.nodes is template.nodes
 
             # Update template source
             time.sleep(0.01)
@@ -256,6 +261,7 @@ def test_auto_reload_cached_templates_async() -> None:
             assert await template.is_up_to_date_async() is False
             updated_template = await env.get_template_async("some.txt")
             assert updated_template is not template
+            assert updated_template.nodes is not template.nodes
 
     asyncio.run(coro())
 
@@ -274,7 +280,8 @@ def test_dont_auto_reload_cached_templates() -> None:
 
         same_template = env.get_template("some.txt")
         assert same_template.is_up_to_date()
-        assert same_template is template
+        assert same_template is not template
+        assert same_template.nodes is template.nodes
 
         # Update template source
         time.sleep(0.01)
@@ -282,7 +289,9 @@ def test_dont_auto_reload_cached_templates() -> None:
 
         assert template.is_up_to_date() is False
         updated_template = env.get_template("some.txt")
-        assert updated_template is template
+        # Without auto reload we get a new binding to the same compiled nodes.
+        assert updated_template is not template
+        assert updated_template.nodes is template.nodes
 
 
 def test_dont_auto_reload_cached_templates_async() -> None:
@@ -300,7 +309,8 @@ def test_dont_auto_reload_cached_templates_async() -> None:
 
             same_template = await env.get_template_async("some.txt")
             assert await same_template.is_up_to_date_async()
-            assert same_template is template
+            assert same_template is not template
+            assert same_template.nodes is template.nodes
 
             # Update template source
             time.sleep(0.01)
@@ -308,7 +318,9 @@ def test_dont_auto_reload_cached_templates_async() -> None:
 
             assert await template.is_up_to_date_async() is False
             updated_template = await env.get_template_async("some.txt")
-            assert updated_template is template
+            # Without auto reload we get a new binding to the same compiled nodes.
+            assert updated_template is not template
+            assert updated_template.nodes is template.nodes
 
     asyncio.run(coro())
 
@@ -355,10 +367,11 @@ def test_cache_templates_with_a_namespaced_cache_key() -> None:
     assert template.is_up_to_date() is True
 
     another_template = env.get_template("index.liquid")
-    assert template is another_template
+    assert template is not another_template
+    assert template.nodes is another_template.nodes
 
     assert env.get_template("index.liquid", namespace="mock") is not template
-    assert env.get_template("index.liquid") is template
+    assert env.get_template("index.liquid").nodes is template.nodes
 
     async def coro(namespace: str | None = None) -> BoundTemplate:
         if namespace is not None:
@@ -366,4 +379,4 @@ def test_cache_templates_with_a_namespaced_cache_key() -> None:
         return await env.get_template_async("index.liquid")
 
     assert asyncio.run(coro(namespace="mock")) is not template
-    assert asyncio.run(coro()) is template
+    assert asyncio.run(coro()).nodes is template.nodes

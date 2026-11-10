@@ -19,4 +19,7 @@ def test_caching_choice_loader() -> None:
     assert template.render() == "the quick brown fox"
     assert len(loader.cache) == 2
 
-    assert env.get_template("b") is template
+    cached = env.get_template("b")
+    assert cached is not template
+    # Compiled nodes are shared between loads of the same template.
+    assert cached.nodes is template.nodes

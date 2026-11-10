@@ -76,7 +76,10 @@ def test_cached_template_async() -> None:
         return await env.get_template_async("index.liquid")
 
     template = asyncio.run(coro())
-    assert template is asyncio.run(coro())
+    cached = asyncio.run(coro())
+    assert cached is not template
+    # Compiled nodes are shared between loads of the same template.
+    assert cached.nodes is template.nodes
 
 
 def test_async_up_to_date() -> None:

@@ -93,6 +93,34 @@ class BoundTemplate:
     def __str__(self) -> str:
         return "".join(str(node) for node in self.nodes)
 
+    def bind(
+        self,
+        globals: Optional[Mapping[str, object]] = None,  # noqa: A002
+    ) -> BoundTemplate:
+        """Return a new template bound to the same environment and parse tree.
+
+        The returned template shares this template's compiled nodes, matter,
+        name, path and up-to-date callable, but carries its own template
+        globals. This allows caching loaders to share compiled templates
+        between callers while keeping each caller's globals isolated from
+        every other caller.
+
+        Args:
+            globals: A mapping of render context variables made available
+                every time the resulting template is rendered. `None` (the
+                default) and empty mappings are equivalent to no template
+                globals at all.
+        """
+        return self.__class__(
+            self.env,
+            self.nodes,
+            name=self.name,
+            path=self.path,
+            globals=globals,
+            matter=self.matter,
+            uptodate=self.uptodate,
+        )
+
     def full_name(self) -> str:
         """Return this template's path, if available, joined with its name."""
         if self.path:

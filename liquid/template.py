@@ -25,6 +25,8 @@ from .exceptions import LiquidInterrupt
 from .exceptions import LiquidSyntaxError
 from .exceptions import StopRender
 from .output import LimitedStringIO
+from .access_analysis import analyze_data_access
+from .access_analysis import analyze_data_access_async
 from .static_analysis import analyze
 from .static_analysis import analyze_async
 from .utils import ReadOnlyChainMap
@@ -35,6 +37,7 @@ if TYPE_CHECKING:
     from .ast import Node
     from .environment import Environment
     from .loader import UpToDate
+    from .access_analysis import DataAccessAnalysis
     from .static_analysis import Segments
     from .static_analysis import TemplateAnalysis
 
@@ -270,6 +273,43 @@ class BoundTemplate:
     async def analyze_async(self, *, include_partials: bool = True) -> TemplateAnalysis:
         """An async version of `analyze`."""
         return await analyze_async(self, include_partials=include_partials)
+
+    def analyze_data_access(
+        self, *, include_partials: bool = True, max_partial_depth: int = 10
+    ) -> DataAccessAnalysis:
+        """Statically analyze the data this template might read.
+
+        Returns a `DataAccessAnalysis` listing every variable occurrence
+        resolved to a path from its outermost data source, plus a provenance
+        chain showing whether each value comes from root render data, a
+        template local, a loop variable or a partial template argument.
+        Ranges that cannot be determined statically, like accesses behind a
+        dynamic partial name, are reported explicitly as unknowns.
+
+        The result is a conservative over-approximation intended to aid
+        security review. It cannot replace runtime authorization.
+
+        Args:
+            include_partials: If `True`, we will try to load partial templates
+                and analyze those templates too.
+            max_partial_depth: The maximum depth of nested partial templates
+                to follow before reporting an unknown range instead.
+        """
+        return analyze_data_access(
+            self,
+            include_partials=include_partials,
+            max_partial_depth=max_partial_depth,
+        )
+
+    async def analyze_data_access_async(
+        self, *, include_partials: bool = True, max_partial_depth: int = 10
+    ) -> DataAccessAnalysis:
+        """An async version of `analyze_data_access`."""
+        return await analyze_data_access_async(
+            self,
+            include_partials=include_partials,
+            max_partial_depth=max_partial_depth,
+        )
 
     def variables(self, *, include_partials: bool = True) -> list[str]:
         """Return a list of variables used in this template without path segments.

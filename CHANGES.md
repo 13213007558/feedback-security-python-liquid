@@ -2,6 +2,10 @@
 
 ## Version 2.3.7 (unreleased)
 
+**Features**
+
+- Added `BoundTemplate.analyze_data_access()` and `BoundTemplate.analyze_data_access_async()`, returning a `liquid.access_analysis.DataAccessAnalysis`. It lists every variable occurrence resolved to a path from its outermost data source, with a provenance chain (root input, `assign`/`capture` local, loop variable or `include`/`render` partial argument), and reports statically undeterminable ranges — dynamic subscripts, dynamic partial names, missing partials and partial recursion — as explicit unknowns. The result is a conservative over-approximation to aid security review and cannot replace runtime authorization. `BoundTemplate.analyze()` and `TemplateAnalysis` are unchanged.
+
 **Fixes**
 
 - Fixed `<` and `>` comparing Boolean operands as integers, or raising `LiquidTypeError`, since version 2.3.3. They now evaluate to `false`, like `<=` and `>=`.
